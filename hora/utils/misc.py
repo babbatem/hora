@@ -54,6 +54,7 @@ def set_np_formatting():
 
 
 def set_seed(seed):
+    seed = int(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

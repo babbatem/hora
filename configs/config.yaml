@@ -30,12 +30,12 @@ test: False
 checkpoint: ''
 
 # disables rendering
-headless: False
+headless: True
 
 # set default task and default training config based on task
 defaults:
   - _self_
-  - task: AllegroHandHora
+  - task: FrankaCubePush
   - train: ${task}
   - override hydra/job_logging: disabled
 
