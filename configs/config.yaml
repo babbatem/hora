@@ -4,6 +4,9 @@ task_name: ${task.name}
 # if set to positive integer, overrides the default number of environments
 num_envs: ''
 
+# experiment name. defaults to name of training config
+experiment: ''
+
 # seed - set to -1 to choose random seed
 seed: 42
 
@@ -31,6 +34,16 @@ checkpoint: ''
 
 # disables rendering
 headless: True
+
+
+wandb_activate: True
+wandb_group: ''
+wandb_name: ${train.params.config.name}
+wandb_entity: 'robin-abba'
+wandb_project: 'push-ppo'
+wandb_tags: []
+wandb_logcode_dir: '' 
+
 
 # set default task and default training config based on task
 defaults:

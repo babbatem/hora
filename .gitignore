@@ -11,6 +11,8 @@ _doxygen
 *.pxd2
 /tests/logs
 
+wandb/
+
 .idea
 outputs/
 *.hydra*

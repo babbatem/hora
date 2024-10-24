@@ -13,6 +13,7 @@
 import os
 import time
 import torch
+import wandb
 
 from hora.algo.ppo.experience import ExperienceBuffer
 from hora.algo.models.models import ActorCritic
@@ -97,6 +98,12 @@ class PPO(object):
         writer = SummaryWriter(self.tb_dif)
         self.writer = writer
 
+        # ---- WandB Logger ----
+        self.wandb_activate = full_config.wandb_activate
+        if self.wandb_activate:
+            wandb.init(project=full_config.wandb_project, entity=full_config.wandb_entity, name=full_config.wandb_name)
+
+
         self.episode_rewards = AverageScalarMeter(100)
         self.episode_lengths = AverageScalarMeter(100)
         self.obs = None
@@ -131,9 +138,32 @@ class PPO(object):
         self.writer.add_scalar('info/last_lr', self.last_lr, self.agent_steps)
         self.writer.add_scalar('info/e_clip', self.e_clip, self.agent_steps)
         self.writer.add_scalar('info/kl', torch.mean(torch.stack(kls)).item(), self.agent_steps)
+        if self.wandb_activate:
+            # Log performance metrics
+            wandb.log({
+                'performance/RLTrainFPS': self.agent_steps / self.rl_train_time,
+                'performance/EnvStepFPS': self.agent_steps / self.data_collect_time,
+            })
+
+            # Log losses
+            wandb.log({
+                'losses/actor_loss': torch.mean(torch.stack(a_losses)).item(),
+                'losses/bounds_loss': torch.mean(torch.stack(b_losses)).item(),
+                'losses/critic_loss': torch.mean(torch.stack(c_losses)).item(),
+                'losses/entropy': torch.mean(torch.stack(entropies)).item(),
+            })
+
+            # Log additional info
+            wandb.log({
+                'info/last_lr': self.last_lr,
+                'info/e_clip': self.e_clip,
+                'info/kl': torch.mean(torch.stack(kls)).item(),
+            })
+
 
         for k, v in self.extra_info.items():
             self.writer.add_scalar(f'{k}', v, self.agent_steps)
+            wandb.log({k: v})
 
     def set_eval(self):
         self.model.eval()
@@ -186,6 +216,11 @@ class PPO(object):
             mean_lengths = self.episode_lengths.get_mean()
             self.writer.add_scalar('episode_rewards/step', mean_rewards, self.agent_steps)
             self.writer.add_scalar('episode_lengths/step', mean_lengths, self.agent_steps)
+            if self.wandb_activate:
+                wandb.log({
+                    'episode_rewards/step': mean_rewards,
+                    'episode_lengths/step': mean_lengths,
+                })
             checkpoint_name = f'ep_{self.epoch_num}_step_{int(self.agent_steps // 1e6):04}M_reward_{mean_rewards:.2f}'
 
             if self.save_freq > 0:
