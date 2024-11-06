@@ -14,5 +14,5 @@ CUDA_VISIBLE_DEVICES=${GPUS} \
 python train.py task=FrankaCubePush headless=True seed=${SEED} \
 train.algo=PPO \
 train.ppo.priv_info=True train.ppo.proprio_adapt=False \
-train.ppo.output_name=FrankaCubePush/"${CACHE}" \
+train.ppo.output_name=RMA_no_goal_noise/"${CACHE}" \
 ${EXTRA_ARGS}
