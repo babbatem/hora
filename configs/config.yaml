@@ -38,7 +38,7 @@ headless: True
 
 wandb_activate: True
 wandb_group: ''
-wandb_name: ${train.params.config.name}
+wandb_name: RMA_no_goal_noise
 wandb_entity: 'robin-abba'
 wandb_project: 'push-ppo'
 wandb_tags: []

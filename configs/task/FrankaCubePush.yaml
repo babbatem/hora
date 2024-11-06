@@ -1,5 +1,5 @@
 # used to create the object
-name: RMA_no_goal_noise
+name: FrankaCubePush
 
 physics_engine: ${..physics_engine}
 
