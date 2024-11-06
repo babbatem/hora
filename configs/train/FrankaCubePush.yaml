@@ -2,9 +2,9 @@ seed: ${..seed} # Cube push derived from AllegroHandHora.yaml
 algo: PPO
 network:
   mlp:
-    units: [512, 256, 128]
+    units: [256, 128, 64]
   priv_mlp:
-    units: [256, 128, 8]
+    units: [32, 32, 8]
 
 load_path: ${..checkpoint} # path to the checkpoint to load
 
@@ -26,7 +26,7 @@ ppo:
   # PPO loss setting
   clip_value: True
   critic_coef: 4
-  entropy_coef: 0.0
+  entropy_coef: 0.005
   e_clip: 0.2
   bounds_loss_coef: 0.0001
   # grad clipping
@@ -35,7 +35,7 @@ ppo:
   # snapshot setting
   save_best_after: 0
   save_frequency: 500
-  max_agent_steps: 1500000000
+  max_agent_steps: 7500000000
   # hora setting
   priv_info: False
   priv_info_dim: 9

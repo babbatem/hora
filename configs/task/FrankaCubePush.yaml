@@ -23,7 +23,7 @@ env:
 
   cubeInitPosNoise: 0.2
   cubeInitOriNoise: 3.14
-  cubeGoalPosNoise: 0.2
+  cubeGoalPosNoise: 0
   cubeGoalOriNoise: 0.0
 
   frankaPositionNoise: 0.0
