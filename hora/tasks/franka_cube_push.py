@@ -202,6 +202,8 @@ class FrankaCubePush(PrivInfoVecTask):
         self.sim = super().create_sim(
             self.device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
         self._create_ground_plane()
+        print("Number of Environments")
+        print(self.num_envs)
         self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'], int(np.sqrt(self.num_envs)))
 
 
