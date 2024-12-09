@@ -28,7 +28,7 @@ class PrivInfoVecTask(VecTask):
             }
         )
 
-    def _allocate_task_buffer(self, num_envs = None):
+    def _allocate_task_buffer(self):
         # extra buffers for observe randomized params
         self.prop_hist_len = self.config['env']['propHistoryLen']
         self.num_env_factors = self.config['env']['privInfoDim']
@@ -59,14 +59,14 @@ class PrivInfoVecTask(VecTask):
         super().reset()
         if self.config['task']['randomize']:
             self.obs_dict['priv_info'] = self.priv_info_buf.to(self.rl_device)
-            self.obs_dict['proprio_hist'] = self.proprio_hist_buf.to(self.rl_device)
+            # self.obs_dict['proprio_hist'] = self.proprio_hist_buf.to(self.rl_device)
         return self.obs_dict
 
     def step(self, actions):
        super().step(actions)
        if self.config['task']['randomize']:
             self.obs_dict['priv_info'] = self.priv_info_buf.to(self.rl_device)
-            self.obs_dict['proprio_hist'] = self.proprio_hist_buf.to(self.rl_device)
+            # self.obs_dict['proprio_hist'] = self.proprio_hist_buf.to(self.rl_device) 
        return self.obs_dict, self.rew_buf, self.reset_buf, self.extras
        
         

@@ -30,6 +30,7 @@
 from hora.tasks.allegro_hand_hora import AllegroHandHora
 from hora.tasks.allegro_hand_grasp import AllegroHandGrasp
 from hora.tasks.franka_cube_push import FrankaCubePush
+from hora.tasks.franka_cube_slide import FrankaCubeSlide
 
 # Mappings from strings to environments
 isaacgym_task_map = {
@@ -37,5 +38,6 @@ isaacgym_task_map = {
     'AllegroHandGrasp': AllegroHandGrasp,
     'PublicAllegroHandHora': AllegroHandHora,
     'PublicAllegroHandGrasp': AllegroHandGrasp,
-    'FrankaCubePush': FrankaCubePush
+    'FrankaCubePush': FrankaCubePush,
+    'FrankaCubeSlide': FrankaCubeSlide,
 }
