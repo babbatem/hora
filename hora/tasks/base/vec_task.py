@@ -375,6 +375,7 @@ class VecTask(Env):
         # apply actions
         self.pre_physics_step(action_tensor)
 
+        self.force_render = True
         # step physics and render each frame
         for i in range(self.control_freq_inv):
             if self.force_render:

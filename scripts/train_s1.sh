@@ -11,7 +11,7 @@ EXTRA_ARGS_SLUG=${EXTRA_ARGS// /_}
 echo extra "${EXTRA_ARGS}"
 
 CUDA_VISIBLE_DEVICES=${GPUS} \
-python train.py task=FrankaCubePush headless=True seed=${SEED} \
+python train.py task=FrankaCubeSlide headless=True seed=${SEED} \
 train.algo=PPO \
 train.ppo.priv_info=True train.ppo.proprio_adapt=False \
 train.ppo.output_name=RMA_no_goal_noise/"${CACHE}" \

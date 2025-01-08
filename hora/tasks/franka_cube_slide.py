@@ -6,9 +6,8 @@ from isaacgym import gymtorch
 from isaacgym import gymapi
 from isaacgym import gymutil
 
-from isaacgymenvs.utils.torch_jit_utils import quat_mul, quat_apply, to_torch, tensor_clamp, quat_conjugate, quat_to_angle_axis 
-from isaacgymenvs.tasks.base.priv_info_task import PrivInfoVecTask
-
+from hora.utils.torch_jit_utils import quat_mul, quat_apply, to_torch, tensor_clamp, quat_conjugate, quat_to_angle_axis
+from hora.tasks.base.priv_info_task import PrivInfoVecTask
 
 
 @torch.jit.script
@@ -48,8 +47,9 @@ def axisangle2quat(vec, eps=1e-6):
 
 class FrankaCubeSlide(PrivInfoVecTask):
 
-    def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
-        self.cfg = cfg
+    #def __init__(self, config, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
+    def __init__(self, config, sim_device, graphics_device_id, headless):
+        self.cfg = config
         
         # Initialize gym
         self.gym = gymapi.acquire_gym()
@@ -167,8 +167,8 @@ class FrankaCubeSlide(PrivInfoVecTask):
         self.up_axis_idx = 2
         self._steps_elapsed = 0 
 
-        super().__init__(config=self.cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
-
+        super().__init__(config=self.cfg, rl_device=sim_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless)
+        
         # Franka defaults
         if self.control_input == 'pose2d' or self.control_input == 'primitive':
             self.franka_default_dof_pos = to_torch(
@@ -1159,8 +1159,14 @@ def compute_franka_reward(
     success_condition2 = delta_pos < success_threshold 
     success_condition3 = progress_buf > 0
     success_condition = success_condition1 & success_condition2 & success_condition3  # Combined success condition
-    success_reward = torch.where(success_condition, reward_settings["r_success_scale"], torch.zeros_like(distance_reward))
-
+    #success_reward = torch.where(success_condition, reward_settings["r_success_scale"], torch.zeros_like(distance_reward))
+    success_reward = torch.where(
+        success_condition,
+        torch.tensor(reward_settings["r_success_scale"], dtype=distance_reward.dtype, device=distance_reward.device),
+        torch.zeros_like(distance_reward)
+    )
+   
+    #print(success_reward)
     # 3. Penalty for End-Effector near the Goal
     ee_pos = states["eef_pos"]
     ee_goal_dist = torch.norm(ee_pos - goal_pos, dim=-1)
