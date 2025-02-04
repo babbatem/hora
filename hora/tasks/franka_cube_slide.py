@@ -558,8 +558,10 @@ class FrankaCubeSlide(PrivInfoVecTask):
             
         # update the proprio_hist_buf
         # Shift the buffer to the left by one to discard the oldest data
-        self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
-        
+        if torch.all(self.proprio_hist_buf[:, 0, :] == 0):
+            # Discard the oldest data point by shifting the buffer to the left by one
+            self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
+
         # append the new cube state to the buffer
         self.proprio_hist_buf[:, -1, :] = cube_states
         

@@ -7,6 +7,7 @@
 
 import os
 import time
+import wandb
 import torch
 import numpy as np
 from termcolor import cprint
@@ -60,6 +61,13 @@ class ProprioAdapt(object):
         writer = SummaryWriter(self.tb_dir)
         self.writer = writer
         self.direct_info = {}
+
+        # ---- WandB Logger ----
+        self.wandb_activate = full_config.wandb_activate
+        if self.wandb_activate:
+            wandb.init(project=full_config.wandb_project, entity=full_config.wandb_entity, name=full_config.wandb_name)
+
+
         # ---- Misc ----
         self.batch_size = self.num_actors
         self.mean_eps_reward = AverageScalarMeter(window_size=20000)
@@ -73,7 +81,7 @@ class ProprioAdapt(object):
                 adapt_params.append(p)
             else:
                 p.requires_grad = False
-        self.optim = torch.optim.Adam(adapt_params, lr=3e-4)
+        self.optim = torch.optim.Adam(adapt_params, lr=5e-4)
         # ---- Training Misc
         self.internal_counter = 0
         self.latent_loss_stat = 0
@@ -90,6 +98,8 @@ class ProprioAdapt(object):
     def test(self):
         self.set_eval()
         obs_dict = self.env.reset()
+        print(f'obs_dict after reset: {obs_dict.keys()}')
+        
         while True:
             input_dict = {
                 'obs': self.running_mean_std(obs_dict['obs']),
@@ -150,6 +160,16 @@ class ProprioAdapt(object):
             info_string = f'Agent Steps: {int(self.agent_steps // 1e6):04}M | FPS: {all_fps:.1f} | ' \
                           f'Last FPS: {last_fps:.1f} | ' \
                           f'Current Best: {self.best_rewards:.2f}'
+            if self.wandb_activate:
+                wandb.log({
+                    "agent_steps": self.agent_steps,
+                    "mean_episode_reward": mean_rewards,
+                    "mean_episode_length": self.mean_eps_length.get_mean(),
+                    "fps": all_fps,
+                    "last_fps": last_fps,
+                    "current_best_reward": self.best_rewards,
+                    "loss": loss.item(),  # Log loss
+                }, step=self.agent_steps)
             tprint(info_string)
 
     def log_tensorboard(self):
