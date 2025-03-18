@@ -541,10 +541,11 @@ class FrankaCubeSlide(PrivInfoVecTask):
         """
         
         # get cube pos and quat
-        cube_states = torch.cat([self.states["cube_pos"], self.states["cube_quat"]], dim=1)  # [num_envs, 7]
+        cube_states = torch.cat([self.states["cube_pos"], self.states["cube_quat"], self.states["cube_vel"], self.actions], dim=1)  # [num_envs, 18]
+        print(cube_states.shape)
 
         # proprio_hist_buf = [num_envs] x [prop_hist_len] x [prop_dim]
-        cube_states_dim = cube_states.shape[1] # 7
+        cube_states_dim = cube_states.shape[1] # 18 (3 for pos, 4 for quat, 3 for vel, 6 for actions)
         prop_his_buf_dim = self.proprio_hist_buf.shape[2] #[prop_dim] 32 (hardcoded val from `_allocate_task_buffer`)
                 
         # check dimensions of the cube_states and self.proprio_hist_buf
@@ -558,17 +559,17 @@ class FrankaCubeSlide(PrivInfoVecTask):
             
         # update the proprio_hist_buf
         # Shift the buffer to the left by one to discard the oldest data
-        if torch.all(self.proprio_hist_buf[:, 0, :] == 0):
-            # Discard the oldest data point by shifting the buffer to the left by one
-            self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
+        #if torch.all(self.proprio_hist_buf[:, 0, :] ):
+        # Discard the oldest data point by shifting the buffer to the left by one
+        self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
 
         # append the new cube state to the buffer
         self.proprio_hist_buf[:, -1, :] = cube_states
         
         
         # Print the shape and example data of the proprio_hist_buf for debugging
-        # print(f"proprio_hist_buf shape: {self.proprio_hist_buf.shape}")
-        # print(f"proprio_hist_buf example data (first env): {self.proprio_hist_buf[0]}")
+        #print(f"proprio_hist_buf shape: {self.proprio_hist_buf.shape}")
+        #print(f"proprio_hist_buf example data (first env): {self.proprio_hist_buf[0]}")
         
 
     def reset_idx(self, env_ids):

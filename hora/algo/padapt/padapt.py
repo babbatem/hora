@@ -81,7 +81,7 @@ class ProprioAdapt(object):
                 adapt_params.append(p)
             else:
                 p.requires_grad = False
-        self.optim = torch.optim.Adam(adapt_params, lr=5e-4)
+        self.optim = torch.optim.Adam(adapt_params, lr=1e-3) # Was 5e-4
         # ---- Training Misc
         self.internal_counter = 0
         self.latent_loss_stat = 0
@@ -112,16 +112,46 @@ class ProprioAdapt(object):
     def train(self):
         _t = time.time()
         _last_t = time.time()
-
+        contact_once = False
         obs_dict = self.env.reset()
         self.agent_steps += self.batch_size
+        prev_proprio = obs_dict['proprio_hist']
         while self.agent_steps <= 1e9:
+            # Extract observation components
+            obs = obs_dict['obs']
+
+            cube_pos = obs[:, :3]
+            cube_quat = obs[:, 3:7]
+            eef_pos = obs[:, 7:10]
+            eef_quat = obs[:, 10:14]
+            cube_vel = obs[:, 14:17]
+            cube_pos_diff = obs[:, 17:20]
+            delta_pos = torch.norm(cube_pos_diff, dim=-1)
+            eef_cube_dist = torch.norm(cube_pos - eef_pos, dim=-1)
+
+            if self.agent_steps > 0 and torch.any(eef_cube_dist > 0.05):
+                print(f'Cube is NOT in contact with the end effector.')
+                #if not contact_once: 
+                #self.agent_steps += 1
+                
+               
+            else:
+                prev_proprio = obs_dict['proprio_hist']
+                contact_once = True
+                print(f'Cube is in contact with the end effector.')
             input_dict = {
                 'obs': self.running_mean_std(obs_dict['obs']).detach(),
                 'priv_info': obs_dict['priv_info'],
-                'proprio_hist': self.sa_mean_std(obs_dict['proprio_hist'].detach()),
+                'proprio_hist': self.sa_mean_std(prev_proprio.detach()),
             }
             mu, _, _, e, e_gt = self.model._actor_critic(input_dict)
+            
+            
+            # Check whether the cube is in contact
+            #0.005 is the threshold for contact
+            print(eef_cube_dist)
+            
+            
             loss = ((e - e_gt.detach()) ** 2).mean()
             self.optim.zero_grad()
             loss.backward()
@@ -131,6 +161,10 @@ class ProprioAdapt(object):
             mu = torch.clamp(mu, -1.0, 1.0)
             obs_dict, r, done, info = self.env.step(mu)
             self.agent_steps += self.batch_size
+
+
+           
+
 
             # ---- statistics
             self.step_reward += r

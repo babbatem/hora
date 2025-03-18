@@ -35,14 +35,14 @@ class ProprioAdaptTConv(nn.Module):
             nn.ReLU(inplace=True),
         )
         self.temporal_aggregation = nn.Sequential(
-            nn.Conv1d(32, 32, (9,), stride=(2,)),
+            nn.Conv1d(32, 32, (2,), stride=(1,)), # Changed Kernel Size from 9, stride from 2
             nn.ReLU(inplace=True),
-            nn.Conv1d(32, 32, (5,), stride=(1,)),
+            nn.Conv1d(32, 32, (2,), stride=(1,)), # Changed Kernel Size from 5
             nn.ReLU(inplace=True),
-            nn.Conv1d(32, 32, (5,), stride=(1,)),
+            nn.Conv1d(32, 32, (2,), stride=(1,)), # Changed Kernel Size from 5
             nn.ReLU(inplace=True),
         )
-        self.low_dim_proj = nn.Linear(32 * 3, 8)
+        self.low_dim_proj = nn.Linear(32 * 2, 8) # Changed from 32 * 3, 8
 
     def forward(self, x):
         x = self.channel_transform(x)  # (N, 50, 32)
