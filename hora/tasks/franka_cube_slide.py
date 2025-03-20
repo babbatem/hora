@@ -118,6 +118,8 @@ class FrankaCubeSlide(PrivInfoVecTask):
             self.cfg["env"]["numActions"] = 3 
         elif self.control_input == "pose2d":
             self.cfg["env"]["numActions"] = 2 
+        elif self.control_input == "pose1d":
+            self.cfg["env"]["numActions"] = 1
         elif self.control_input == "primitive": 
             self.cfg["env"]["numActions"] = 2
         else: # pose6d
@@ -170,7 +172,7 @@ class FrankaCubeSlide(PrivInfoVecTask):
         super().__init__(config=self.cfg, rl_device=sim_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless)
         
         # Franka defaults
-        if self.control_input == 'pose2d' or self.control_input == 'primitive':
+        if self.control_input == 'pose2d' or self.control_input == 'pose1d' or self.control_input == 'primitive':
             self.franka_default_dof_pos = to_torch(
                 [-1.6278e-02,  7.4004e-01,  1.2501e-03, -2.3875e+00, -7.6284e-02,
                 3.1262e+00,  8.4474e-01,  9.9999e-04,  1.0000e-03], device=self.device
@@ -537,40 +539,17 @@ class FrankaCubeSlide(PrivInfoVecTask):
     
     def store_proprio_hist(self):
         """
-        Store the proprioceptive history of the cube (cube states) in the proprioception buffer. 
+        Store the proprioceptive history -- previous states and actions. 
         """
-        
-        # get cube pos and quat
-        cube_states = torch.cat([self.states["cube_pos"], self.states["cube_quat"], self.states["cube_vel"], self.actions], dim=1)  # [num_envs, 18]
-        print(cube_states.shape)
 
-        # proprio_hist_buf = [num_envs] x [prop_hist_len] x [prop_dim]
-        cube_states_dim = cube_states.shape[1] # 18 (3 for pos, 4 for quat, 3 for vel, 6 for actions)
-        prop_his_buf_dim = self.proprio_hist_buf.shape[2] #[prop_dim] 32 (hardcoded val from `_allocate_task_buffer`)
-                
-        # check dimensions of the cube_states and self.proprio_hist_buf
-        if cube_states_dim > prop_his_buf_dim:
-            raise ValueError(f"Proprioception buffer dimension mismatch! Cube state dim: {cube_states_dim} > Proprioception buffer dim: {prop_his_buf_dim}")
-        
-        # if prop hist buffer's prop dim is greater than cube state dim, pad the cube_states with zeros to match the prop hist buffer dim
-        elif cube_states_dim < prop_his_buf_dim:
-            padding = torch.zeros((self.num_envs, (prop_his_buf_dim - cube_states_dim)), device=self.device, dtype=torch.float)
-            cube_states = torch.cat([cube_states, padding], dim=1) # shape: [num_envs, prop_his_buf_dim]
+        # Grab current state and action 
+        proprio_t = torch.cat([self.obs_buf, self.actions], dim=-1)
             
-        # update the proprio_hist_buf
         # Shift the buffer to the left by one to discard the oldest data
-        #if torch.all(self.proprio_hist_buf[:, 0, :] ):
-        # Discard the oldest data point by shifting the buffer to the left by one
         self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
-
+        
         # append the new cube state to the buffer
-        self.proprio_hist_buf[:, -1, :] = cube_states
-        
-        
-        # Print the shape and example data of the proprio_hist_buf for debugging
-        #print(f"proprio_hist_buf shape: {self.proprio_hist_buf.shape}")
-        #print(f"proprio_hist_buf example data (first env): {self.proprio_hist_buf[0]}")
-        
+        self.proprio_hist_buf[:, -1, :] = proprio_t
 
     def reset_idx(self, env_ids):
         
@@ -719,7 +698,7 @@ class FrankaCubeSlide(PrivInfoVecTask):
         init_cube_xy_state = centered_cube_xy_state + torch.tensor([init_x_offset, init_y_offset], device=self.device, dtype=torch.float32)
         
         # add offset to the centered_cube_xy_state
-        goal_x_offset = 1.0
+        goal_x_offset = 0.75
         goal_y_offset = 0.0
         # goal_cube_xy_state = centered_cube_xy_state + torch.tensor([goal_x_offset, goal_y_offset], device=self.device, dtype=torch.float32)
         goal_cube_xy_state = torch.tensor([goal_x_offset, goal_y_offset], device=self.device, dtype=torch.float32)
@@ -788,6 +767,53 @@ class FrankaCubeSlide(PrivInfoVecTask):
 
 
         if self.control_type == "osc":
+            if self.control_input == "pose1d":
+
+                # print('DEBUG')
+                # solve high friction (0.06)
+                # self.actions[:, 0] = 0.9
+
+                # solve low friction (0.03)
+                # tbd, wiggles at singularity 
+                # self.actions[:, 0] = 0.2
+                # breakpoint()
+            
+                u_arm = self.actions[:, 0]  # First action for 1D position control (x direction only)
+
+                # z_error, constant height
+                z_error = self.table_z_height - self.states["eef_pos"][:, 2]
+
+                # y error, constant y 
+                y_error = 0. - self.states["eef_pos"][:, 1]
+
+                # if self.add_action_noise: 
+                #     noise = torch.normal(self.action_bias, self.action_var, size=u_arm.shape).to(self.device)
+                #     u_arm += noise
+
+                # Scale the position control
+                u_arm = u_arm * self.cmd_limit[:, :1] / self.action_scale
+
+                # Fixed orientation 
+                if self._steps_elapsed == 0:
+                    ori_error = torch.zeros((self.num_envs, 3), device=self.device)
+                else: 
+                    eef_rot = self.states["eef_quat"]
+                    q_error = quat_mul(self.quat_desired, quat_conjugate(eef_rot))
+                    angle, axis = quat_to_angle_axis(q_error)
+                    ori_error = angle.unsqueeze(1) * axis
+                self._steps_elapsed += 1 
+
+                # Prepare dpose (6D: position + orientation)
+                dpose = torch.zeros((self.num_envs, 6), device=self.device)
+                dpose[:, 0] = u_arm  # Set the position control to x, y, z
+                dpose[:, 1] = y_error
+                dpose[:, 2] = z_error
+                dpose[:, 3:] = ori_error  # Set the orientation to the fixed value
+
+                # Compute OSC torques with variable kp and kd
+                u_arm = self._compute_osc_torques(dpose=dpose)
+
+
             if self.control_input == "pose2d":
                 u_arm = self.actions[:, :2]  # First 2 actions for 2D position control
 
@@ -1071,9 +1097,12 @@ class FrankaCubeSlide(PrivInfoVecTask):
         if len(env_ids) > 0:
             self.reset_idx(env_ids)
 
+        # store proprioceptive history before recomputing obs_buf
+        self.store_proprio_hist()
+
+        # update obs and reward
         self.compute_observations()
         self.compute_reward(self.actions)
-        self.store_proprio_hist()
 
         # debug viz
         if self.viewer and self.debug_viz:
@@ -1153,7 +1182,7 @@ def compute_franka_reward(
     distance_reward = reward_settings["r_pos_scale"] * (1.0 - torch.tanh(10.0 * delta_pos))
 
     # 2. Success Reward
-    success_threshold = 0.05
+    success_threshold = 0.06
     # success condition is True if the cube is within the success threshold and velocity is below a certain threshold
     terminal_velocity_threshold = 0.001
     
@@ -1162,39 +1191,33 @@ def compute_franka_reward(
     success_condition2 = delta_pos < success_threshold 
     success_condition3 = progress_buf > 0
     success_condition = success_condition1 & success_condition2 & success_condition3  # Combined success condition
-    #success_reward = torch.where(success_condition, reward_settings["r_success_scale"], torch.zeros_like(distance_reward))
-    success_reward = torch.where(
-        success_condition,
-        torch.tensor(reward_settings["r_success_scale"], dtype=distance_reward.dtype, device=distance_reward.device),
-        torch.zeros_like(distance_reward)
-    )
-   
-    #print(success_reward)
+    success_reward = torch.where(success_condition, reward_settings["r_success_scale"], torch.zeros_like(distance_reward))
+
     # 3. Penalty for End-Effector near the Goal
-    ee_pos = states["eef_pos"]
-    ee_goal_dist = torch.norm(ee_pos - goal_pos, dim=-1)
-    ee_penalty = -reward_settings["r_eef_approach_scale"] * torch.tanh(10.0 * ee_goal_dist)
+    # ee_pos = states["eef_pos"]
+    # ee_goal_dist = torch.norm(ee_pos - goal_pos, dim=-1)
+    # ee_penalty = -reward_settings["r_eef_approach_scale"] * torch.tanh(10.0 * ee_goal_dist)
 
     # 4. Cube Velocity Reward
-    goal_dir = goal_pos - cube_pos
-    goal_dir = goal_dir / torch.norm(goal_dir, dim=-1, keepdim=True)
-    vel_along_goal = torch.sum(cube_vel * goal_dir, dim=-1)
-    vel_reward = reward_settings["r_vel_scale"] * vel_along_goal
+    # goal_dir = goal_pos - cube_pos
+    # goal_dir = goal_dir / torch.norm(goal_dir, dim=-1, keepdim=True)
+    # vel_along_goal = torch.sum(cube_vel * goal_dir, dim=-1)
+    # vel_reward = reward_settings["r_vel_scale"] * vel_along_goal
     
     # 5. Orientation Reward only if the cube is not in the original position (using delta_pos)
-    move_threshold = 0.6  
-    has_moved = delta_pos < move_threshold
+    # move_threshold = 0.6  
+    # has_moved = delta_pos < move_threshold
 
     # Compute the rotation difference as a quaternion
-    rotation_diff_quat = quat_mul(cube_quat, quat_conjugate(goal_quat))
-    angle, axis = quat_to_angle_axis(rotation_diff_quat)
+    # rotation_diff_quat = quat_mul(cube_quat, quat_conjugate(goal_quat))
+    # angle, axis = quat_to_angle_axis(rotation_diff_quat)
 
     # Reward for aligning roll and pitch (x and y components of the axis)
-    roll_pitch_alignment = torch.norm(axis[:, :2], dim=-1) * angle
-    orientation_reward = reward_settings["r_ori_scale"] * (1.0 - torch.tanh(5.0 * roll_pitch_alignment))
+    # roll_pitch_alignment = torch.norm(axis[:, :2], dim=-1) * angle
+    # orientation_reward = reward_settings["r_ori_scale"] * (1.0 - torch.tanh(5.0 * roll_pitch_alignment))
 
     # Apply orientation reward only if the cube has moved
-    orientation_reward = torch.where(has_moved, orientation_reward, torch.zeros_like(orientation_reward))
+    # orientation_reward = torch.where(has_moved, orientation_reward, torch.zeros_like(orientation_reward))
 
     # Combine rewards
     rewards = (distance_reward +
@@ -1206,10 +1229,6 @@ def compute_franka_reward(
     )
 
     # Compute resets
-    reset_buf = torch.where((progress_buf >= max_episode_length - 1) | success_condition, torch.ones_like(reset_buf), reset_buf)
-    
+    # reset_buf = torch.where((progress_buf >= max_episode_length - 1) | success_condition, torch.ones_like(reset_buf), reset_buf)
+    reset_buf = torch.where((progress_buf >= max_episode_length - 1), torch.ones_like(reset_buf), reset_buf)
     return rewards.detach(), reset_buf, success_condition
-
-
-
-
