@@ -203,6 +203,7 @@ class ProprioAdapt(object):
                     "last_fps": last_fps,
                     "current_best_reward": self.best_rewards,
                     "loss": loss.item(),  # Log loss
+                    "success": self.extras['success'],
                 }, step=self.agent_steps)
             tprint(info_string)
 
