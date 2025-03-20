@@ -1,4 +1,3 @@
-# used to create the object
 name: FrankaCubeSlide
 
 physics_engine: ${..physics_engine}
@@ -7,7 +6,7 @@ physics_engine: ${..physics_engine}
 env:
   numEnvs: ${resolve_default:8192,${...num_envs}}
   envSpacing: 2.5
-  episodeLength: 300
+  episodeLength: 200
   enableDebugVis: False
   enablePrivInfoPrint: False # it won't print if randomize is false
   includePrivInfo: False #include priv info in the observation
@@ -33,16 +32,16 @@ env:
   oriRewardScale: 0.5
   velRewardScale: 0.5
   contactRewardScale: 0.3
-  successRewardScale: 300.0
+  successRewardScale: 10.0
   eefApproachPenaltyScale: 0.1
   
   
-  propHistoryLen: 30
+  propHistoryLen: 5
   privInfoDim: 1 
 
   controlType: osc  # options are {joint_tor, osc}
-  controlInput: pose2d # options are {pose3d, pose6d}
-  variableImpedance: True
+  controlInput: pose1d # options are {pose3d, pose6d}
+  variableImpedance: False
   impedanceRange: [100, 400] # ignored if variableImpedance is False
 
   asset:
@@ -160,10 +159,13 @@ task:
         rigid_shape_properties:
           friction:
             num_buckets: 2
-            range: [0.03, 0.09]
+            # num_buckets: 64
+            # range: [0.03, 0.09]
+            # range: [0.04, 0.09]
+            range: [0.05, 0.10]
+            # range: [0.06, 0.12]
             # range: [0.03, 0.03]
             # range: [0.06, 0.06]
             operation: "scaling"
             distribution: "uniform"
             setup_only: True
-
