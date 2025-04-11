@@ -18,7 +18,6 @@ import wandb
 from hora.algo.ppo.experience import ExperienceBuffer
 from hora.algo.models.models import ActorCritic
 from hora.algo.models.running_mean_std import RunningMeanStd
-
 from hora.utils.misc import AverageScalarMeter
 
 from tensorboardX import SummaryWriter
@@ -53,6 +52,8 @@ class PPO(object):
             'priv_info_dim': self.priv_info_dim,
         }
         self.model = ActorCritic(net_config)
+        print('Model Parameters Right After Init:')
+        self.model.print_param_shapes()
         self.model.to(self.device)
         self.running_mean_std = RunningMeanStd(self.obs_shape).to(self.device)
         self.value_mean_std = RunningMeanStd((1,)).to(self.device)
@@ -153,11 +154,18 @@ class PPO(object):
                 'losses/entropy': torch.mean(torch.stack(entropies)).item(),
             })
 
+            #Calculate success rate only from dones
+            dones_counter = self.dones.sum().item()
+            success_counter = sum([1 for done, success in zip(self.dones, self.env.extras['success']) if done and success])
+            mean_success = success_counter / dones_counter if dones_counter > 0 else 0
+
+
             # Log additional info
             wandb.log({
                 'info/last_lr': self.last_lr,
                 'info/e_clip': self.e_clip,
                 'info/kl': torch.mean(torch.stack(kls)).item(),
+                'info/mean_success': mean_success,
             })
 
 
@@ -220,6 +228,7 @@ class PPO(object):
                 wandb.log({
                     'episode_rewards/step': mean_rewards,
                     'episode_lengths/step': mean_lengths,
+                    'mean_success/step': sum(self.env.extras['success'])/ len(self.env.extras['success']),
                 })
             checkpoint_name = f'ep_{self.epoch_num}_step_{int(self.agent_steps // 1e6):04}M_reward_{mean_rewards:.2f}'
 

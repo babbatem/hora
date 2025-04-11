@@ -27,6 +27,8 @@ class ProprioAdapt(object):
         self.env = env
         self.num_actors = self.ppo_config['num_actors']
         self.observation_space = self.env.observation_space
+        print('Observation Space:')
+        print(self.observation_space)
         self.obs_shape = self.observation_space.shape
         self.action_space = self.env.action_space
         self.actions_num = self.action_space.shape[0]
@@ -45,11 +47,20 @@ class ProprioAdapt(object):
             'proprio_adapt': self.proprio_adapt,
             'priv_info_dim': self.priv_info_dim,
         }
+        print("Network Config:")
+        print(net_config)
         self.model = ActorCritic(net_config)
+        print("During Init:")
+        self.model.print_param_shapes()
         self.model.to(self.device)
         self.model.eval()
+        print("Obs Shape:")
+        print(self.obs_shape)
+        #self.running_mean_std = RunningMeanStd(self.obs_shape).to(self.device)
         self.running_mean_std = RunningMeanStd(self.obs_shape).to(self.device)
+        
         self.running_mean_std.eval()
+        #TODO: Change to be size of observations
         self.sa_mean_std = RunningMeanStd((self.proprio_hist_dim, 32)).to(self.device)
         self.sa_mean_std.train()
         # ---- Output Dir ----
@@ -61,7 +72,7 @@ class ProprioAdapt(object):
         writer = SummaryWriter(self.tb_dir)
         self.writer = writer
         self.direct_info = {}
-
+        
         # ---- WandB Logger ----
         self.wandb_activate = full_config.wandb_activate
         if self.wandb_activate:
@@ -77,6 +88,7 @@ class ProprioAdapt(object):
         # ---- Optim ----
         adapt_params = []
         for name, p in self.model.named_parameters():
+            print(name) 
             if 'adapt_tconv' in name:
                 adapt_params.append(p)
             else:
@@ -90,6 +102,8 @@ class ProprioAdapt(object):
         self.step_reward = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
         self.step_length = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
 
+
+        self.dones = torch.zeros(self.num_actors, dtype=torch.bool, device=self.device)
     def set_eval(self):
         self.model.eval()
         self.running_mean_std.eval()
@@ -116,6 +130,7 @@ class ProprioAdapt(object):
         obs_dict = self.env.reset()
         self.agent_steps += self.batch_size
         prev_proprio = obs_dict['proprio_hist']
+        print(f"Shape of prev_proprio: {prev_proprio.shape}")
         while self.agent_steps <= 1e9:
             # Extract observation components
             obs = obs_dict['obs']
@@ -163,7 +178,7 @@ class ProprioAdapt(object):
             self.agent_steps += self.batch_size
 
 
-           
+            self.dones = done.clone()
 
 
             # ---- statistics
@@ -195,6 +210,10 @@ class ProprioAdapt(object):
                           f'Last FPS: {last_fps:.1f} | ' \
                           f'Current Best: {self.best_rewards:.2f}'
             if self.wandb_activate:
+                dones_counter = self.dones.sum().item()
+                success_counter = sum([1 for done, success in zip(self.dones, self.env.extras['success']) if done and success])
+                mean_success = success_counter / dones_counter if dones_counter > 0 else 0
+
                 wandb.log({
                     "agent_steps": self.agent_steps,
                     "mean_episode_reward": mean_rewards,
@@ -203,7 +222,7 @@ class ProprioAdapt(object):
                     "last_fps": last_fps,
                     "current_best_reward": self.best_rewards,
                     "loss": loss.item(),  # Log loss
-                    "success": self.extras['success'],
+                    "success": mean_success,
                 }, step=self.agent_steps)
             tprint(info_string)
 
@@ -215,9 +234,24 @@ class ProprioAdapt(object):
 
     def restore_train(self, fn):
         checkpoint = torch.load(fn)
+        
+        print("Running Mean Std:")
+        print(checkpoint['running_mean_std'].keys())
+        print(checkpoint['running_mean_std'])
+        
+        self.print_checkpoint_param_shapes(fn)
         cprint('careful, using non-strict matching', 'red', attrs=['bold'])
         self.model.load_state_dict(checkpoint['model'], strict=False)
         self.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
+
+    def print_checkpoint_param_shapes(self, checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        print("Checkpoint parameter shapes:")
+        for name, param in checkpoint['model'].items():
+            print(f"{name}: {param.shape}")
+
+
+
 
     def restore_test(self, fn):
         if not fn:

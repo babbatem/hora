@@ -543,12 +543,15 @@ class FrankaCubeSlide(PrivInfoVecTask):
         """
 
         # Grab current state and action 
-        proprio_t = torch.cat([self.obs_buf, self.actions], dim=-1)
-            
+        proprio_t = torch.cat([self.obs_buf, self.actions], dim=1)
+        # Added padding to proprio_t to match the buffer size
+        padding = torch.zeros((self.num_envs, (self.proprio_hist_buf.shape[2] - proprio_t.shape[-1])), device=self.device, dtype=torch.float)
+        proprio_t = torch.cat([proprio_t, padding], dim=1)
         # Shift the buffer to the left by one to discard the oldest data
         self.proprio_hist_buf = torch.roll(self.proprio_hist_buf, shifts=-1, dims=1)
         
         # append the new cube state to the buffer
+        #TODO: FIX
         self.proprio_hist_buf[:, -1, :] = proprio_t
 
     def reset_idx(self, env_ids):
@@ -1229,6 +1232,6 @@ def compute_franka_reward(
     )
 
     # Compute resets
-    # reset_buf = torch.where((progress_buf >= max_episode_length - 1) | success_condition, torch.ones_like(reset_buf), reset_buf)
-    reset_buf = torch.where((progress_buf >= max_episode_length - 1), torch.ones_like(reset_buf), reset_buf)
+    reset_buf = torch.where((progress_buf >= max_episode_length - 1) | success_condition, torch.ones_like(reset_buf), reset_buf)
+    #reset_buf = torch.where((progress_buf >= max_episode_length - 1), torch.ones_like(reset_buf), reset_buf)
     return rewards.detach(), reset_buf, success_condition
