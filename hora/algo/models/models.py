@@ -29,7 +29,7 @@ class ProprioAdaptTConv(nn.Module):
     def __init__(self):
         super(ProprioAdaptTConv, self).__init__()
         self.channel_transform = nn.Sequential(
-            nn.Linear(16 + 16, 32),
+            nn.Linear(32, 32),
             nn.ReLU(inplace=True),
             nn.Linear(32, 32),
             nn.ReLU(inplace=True),
@@ -66,11 +66,14 @@ class ActorCritic(nn.Module):
         self.priv_info_stage2 = kwargs['proprio_adapt']
         if self.priv_info:
             mlp_input_shape += self.priv_mlp[-1]
+            print("priv_info_stage2:", self.priv_info_stage2)
+            print("priv_mlp:", self.priv_mlp)
             self.env_mlp = MLP(units=self.priv_mlp, input_size=kwargs['priv_info_dim'])
 
             if self.priv_info_stage2:
                 self.adapt_tconv = ProprioAdaptTConv()
-
+        print("MLP input shape:", mlp_input_shape)
+        print("MLP output shape:", out_size)
         self.actor_mlp = MLP(units=self.units, input_size=mlp_input_shape)
         self.value = torch.nn.Linear(out_size, 1)
         self.mu = torch.nn.Linear(out_size, actions_num)
@@ -150,3 +153,7 @@ class ActorCritic(nn.Module):
             'extrin_gt': extrin_gt,
         }
         return result
+    def print_param_shapes(self):
+        for name, param in self.named_parameters():
+            print(f"{name}: {param.shape}")
+
